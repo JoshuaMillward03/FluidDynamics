@@ -11,17 +11,17 @@ class Node{
         float mass;
         float damping = 0.7f;
         float density = 0.0f;
-        float viscosityStrength = 0.5f;
-        const float attractionZone = 1.5f; 
-        const float smoothingRadius = 40.0f;
+        float viscosityStrength = 1.0f;
+        const float attractionZone = 1.6f; 
+        const float smoothingRadius = 30.0f;
         float pressure = 0.0f;
-        float pressureMultiplier = 400.0f;
+        float pressureMultiplier = 300.0f;
         Vector2 position;
         Vector2 velocity;
         Vector2 acceleration;
         Color color = BLUE;
 
-        const float Gravity = 600.0f;
+        const float Gravity = 400.0f;
     public:
         Node(Vector2 startPos,  float nodeMass){
             id = nextId;
@@ -81,7 +81,7 @@ class Node{
             pressure = density * pressureMultiplier;
         }
 
-        void calculateForces(const std::vector<Node>& nodes, int screenWidth, int screenHeight){
+        void calculateForces(const std::vector<Node>& nodes, int screenWidth, int screenHeight, Vector2 mousePos){
             //Node to node forces
             for (auto& otherNode : nodes){
                 if(id == otherNode.id){
@@ -89,7 +89,7 @@ class Node{
                 }
                 Vector2 direction = otherNode.position - position;
                 float distance = Vector2Length(direction);
-
+                
                 if (distance > 0 && distance < smoothingRadius){
                     Vector2 normalizedDirection = Vector2Scale(direction, 1.0f / distance);
                     float x = distance / smoothingRadius;
@@ -99,7 +99,7 @@ class Node{
 
                     // Surface Tension
                     if (influence < 0.0f) {
-                        float attractionStrength = 5.0f;
+                        float attractionStrength = 2.0f;
                         influence *= attractionStrength; 
                     }
 
@@ -117,6 +117,35 @@ class Node{
                     acceleration += viscosityForce;
                 }
             }
+
+            float mouseRadius = 150.0f;
+
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)){
+                float mouseStrength = 2000.0f;
+                Vector2 directionFromMouse = position - mousePos;
+                float distance = Vector2Length(directionFromMouse);
+
+                if (distance > 0 && distance < mouseRadius){ 
+                    Vector2 normalizedDir = Vector2Scale(directionFromMouse, 1.0f / distance);
+
+                    float interactionFactor = (distance / mouseRadius);
+                    acceleration -= normalizedDir * (mouseStrength * interactionFactor);
+                    velocity *= 0.99;
+                }
+            } 
+            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
+                float mouseStrength = 2000.0f;
+                Vector2 directionFromMouse = position - mousePos;
+                float distance = Vector2Length(directionFromMouse);
+
+                if (distance > 0 && distance < mouseRadius){
+                    Vector2 normalizedDir = Vector2Scale(directionFromMouse, 1.0f / distance);
+
+                    float interactionFactor = 1.0f - (distance / mouseRadius);
+                    acceleration += normalizedDir * (mouseStrength * interactionFactor);
+                }
+            } 
+            
             // // Boundary wall test
             // float boundaryForceStrength = 2000.0f; 
 
@@ -161,14 +190,14 @@ class ParticleSystem{
         void updateAll(float deltaTime){
             int screenHeight = GetScreenHeight();
             int screenWidth = GetScreenWidth();
-
+            Vector2 mousePos = GetMousePosition();
             for (auto& node : nodes){
                 node.calculateDensity(nodes);
             }
 
             // calculate forces from Pressure and Viscosity. 
             for (auto& node : nodes){
-                node.calculateForces(nodes, screenWidth, screenHeight);
+                node.calculateForces(nodes, screenWidth, screenHeight, mousePos);
             }
 
             //Update position, calculate colisions, and draw nodes
@@ -205,7 +234,7 @@ int main(void) {
     const int screenHeight = 800;
 
     ParticleSystem nodes;
-    nodes.addBlock({25.0f, 400.0f}, 1.0f, 50, 20, 15);
+    nodes.addBlock({25.0f, 25.0f}, 1.0f, 50, 20, 15);
 
     InitWindow(screenWidth, screenHeight, "Raylib Fluid Test");
     SetTargetFPS(60);
