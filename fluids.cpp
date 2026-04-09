@@ -11,17 +11,17 @@ class Node{
         float mass;
         float damping = 0.7f;
         float density = 0.0f;
-        float viscosityStrength = 1.0f;
+        float viscosityStrength = 0.7f;
         const float attractionZone = 1.6f; 
-        const float smoothingRadius = 30.0f;
+        const float smoothingRadius = 75.0f;
         float pressure = 0.0f;
-        float pressureMultiplier = 300.0f;
-        Vector2 position;
+        float pressureMultiplier = 1000.0f;
+        Vector2 position;   
         Vector2 velocity;
         Vector2 acceleration;
         Color color = BLUE;
 
-        const float Gravity = 400.0f;
+        const float Gravity = 0.0f;
     public:
         Node(Vector2 startPos,  float nodeMass){
             id = nextId;
@@ -77,8 +77,8 @@ class Node{
                     density += influence * influence; // Smoothing Kernal: (1 - x^2)^2
                 }
             }
-
-            pressure = density * pressureMultiplier;
+            float targetDensity = 0.0f;//test
+            pressure = (density - targetDensity) * pressureMultiplier;
         }
 
         void calculateForces(const std::vector<Node>& nodes, int screenWidth, int screenHeight, Vector2 mousePos){
@@ -89,32 +89,36 @@ class Node{
                 }
                 Vector2 direction = otherNode.position - position;
                 float distance = Vector2Length(direction);
+                distance = std::max(distance, 0.001f);
                 
                 if (distance > 0 && distance < smoothingRadius){
                     Vector2 normalizedDirection = Vector2Scale(direction, 1.0f / distance);
-                    float x = distance / smoothingRadius;
-
+                    
+                    //Original Kernal
+                    //float x = distance / smoothingRadius;
                     //influence = (1 - x)^2 * (1 - k * x)
-                    float influence = (1.0f - x) * (1.0f - x) * (1.0f - attractionZone * x);
+                    //float influence = (1.0f - x) * (1.0f - x) * (1.0f - attractionZone * x);
 
-                    // Surface Tension
-                    if (influence < 0.0f) {
-                        float attractionStrength = 2.0f;
-                        influence *= attractionStrength; 
-                    }
+                    // test kernal
+                    float x = (-distance + smoothingRadius) / smoothingRadius;
+                    float influence = (x * x)/0.8f - 0.11f;
+                    
 
                     //Pressure force
                     float sharedPressure = (pressure + otherNode.getPressure()) / 2.0f;
-                    float pressureForceMagnitude = sharedPressure * influence;
+                    float safeDensity = std::max(otherNode.density, 0.001f);
+                    float pressureForceMagnitude = (sharedPressure * influence) / safeDensity;
                     Vector2 pressureForce = normalizedDirection * -pressureForceMagnitude;
 
                     acceleration += pressureForce;
 
                     //Viscocity
+                    x = distance / smoothingRadius;
                     float viscoInfluence = 1.0f - x; 
                     Vector2 relativeVel = otherNode.velocity - velocity;
                     Vector2 viscosityForce = relativeVel * (viscoInfluence * viscosityStrength);
                     acceleration += viscosityForce;
+
                 }
             }
 
@@ -128,7 +132,7 @@ class Node{
                 if (distance > 0 && distance < mouseRadius){ 
                     Vector2 normalizedDir = Vector2Scale(directionFromMouse, 1.0f / distance);
 
-                    float interactionFactor = (distance / mouseRadius);
+                    float interactionFactor = std::pow((distance / mouseRadius), 2);
                     acceleration -= normalizedDir * (mouseStrength * interactionFactor);
                     velocity *= 0.99;
                 }
@@ -146,32 +150,38 @@ class Node{
                 }
             } 
             
-            // // Boundary wall test
-            // float boundaryForceStrength = 2000.0f; 
+            // Boundary wall test
+            float boundaryForceStrength = 2000.0f; 
 
-            // // Left Wall
-            // if (position.x < smoothingRadius) {
-            //     float x = position.x / smoothingRadius;
-            //     acceleration.x += (1.0f - x) * (1.0f - x) * boundaryForceStrength;
-            // }
-            // // Right Wall
-            // if (position.x > screenWidth - smoothingRadius) {
-            //     float distance = screenWidth - position.x;
-            //     float x = distance / smoothingRadius;
-            //     acceleration.x -= (1.0f - x) * (1.0f - x) * boundaryForceStrength;
-            // }
-            // // Top Wall
-            // if (position.y < smoothingRadius) {
-            //     float x = position.y / smoothingRadius;
-            //     acceleration.y += (1.0f - x) * (1.0f - x) * boundaryForceStrength;
-            // }
-            // // Bottom Wall
-            // if (position.y > screenHeight - smoothingRadius) {
-            //     float distance = screenHeight - position.y;
-            //     float x = distance / smoothingRadius;
-            //     acceleration.y -= (1.0f - x) * (1.0f - x) * boundaryForceStrength;
-            // }
+            // Left Wall
+            if (position.x < smoothingRadius) {
+                float x = position.x / smoothingRadius;
+                acceleration.x += (1.0f - x) * (1.0f - x) * boundaryForceStrength;
+            }
+            // Right Wall
+            if (position.x > screenWidth - smoothingRadius) {
+                float distance = screenWidth - position.x;
+                float x = distance / smoothingRadius;
+                acceleration.x -= (1.0f - x) * (1.0f - x) * boundaryForceStrength;
+            }
+            // Top Wall
+            if (position.y < smoothingRadius) {
+                float x = position.y / smoothingRadius;
+                acceleration.y += (1.0f - x) * (1.0f - x) * boundaryForceStrength;
+            }
+            // Bottom Wall
+            if (position.y > screenHeight - smoothingRadius) {
+                float distance = screenHeight - position.y;
+                float x = distance / smoothingRadius;
+                acceleration.y -= (1.0f - x) * (1.0f - x) * boundaryForceStrength;
+            }
             
+            float maxAccel = 4500.0f;
+            float lengthSquared = acceleration.x * acceleration.x + acceleration.y * acceleration.y;
+            if (lengthSquared > maxAccel * maxAccel) {
+                acceleration = Vector2Scale(Vector2Scale(acceleration, 1.0f / std::sqrt(lengthSquared)), maxAccel);
+            }
+
         }
 
         void updateNode(float deltaTime){
@@ -234,7 +244,7 @@ int main(void) {
     const int screenHeight = 800;
 
     ParticleSystem nodes;
-    nodes.addBlock({25.0f, 25.0f}, 1.0f, 50, 20, 15);
+    nodes.addBlock({25.0f, 325.0f}, 1.0f, 50, 20, 15);
 
     InitWindow(screenWidth, screenHeight, "Raylib Fluid Test");
     SetTargetFPS(60);
